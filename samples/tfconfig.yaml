@@ -1,0 +1,17 @@
+apiVersion: opentofu.krateo.io/v1alpha1
+kind: TFConnector
+metadata:
+  name: tfconfig-sample
+spec:
+  providersCredentials:
+    - credFilename: aws-credentials
+      secretRef:
+        name: aws-prov-secret
+        namespace: default
+        key: credentials
+  backendCredentials:
+    - hostname: app.terraform.io
+      secretRef:
+        name: tfcloud-secret  
+        namespace: default
+        key: terraform-backend-token

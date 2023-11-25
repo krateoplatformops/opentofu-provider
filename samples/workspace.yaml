@@ -1,0 +1,13 @@
+apiVersion: opentofu.krateo.io/v1alpha1
+kind: Workspace
+metadata:
+  name: workspace-sample
+spec:
+  deletionPolicy: Orphan
+  connectorConfigRef:
+    name: tfconfig-sample
+    namespace: default
+  workspace:
+    source: Remote
+    module: "git::https://github.com/matteogastaldello/opentofu-example.git?ref=remote"
+    cloud: true
