@@ -9,7 +9,12 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y ca-certificates openssl git tzdata && \
   update-ca-certificates && \
-  rm -rf /var/lib/apt/lists/*
+  rm -rf /var/lib/apt/lists/* && \
+  curl -s https://packagecloud.io/install/repositories/opentofu/tofu/script.deb.sh?any=true -o /tmp/tofu-repository-setup.sh && \
+  bash /tmp/tofu-repository-setup.sh && \
+  rm /tmp/tofu-repository-setup.sh && \
+  apt-get install -y tofu
+
 
 WORKDIR /src
 

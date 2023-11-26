@@ -80,7 +80,7 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (reconcile
 		return nil, errors.Wrap(err, errMkdir)
 	}
 
-	connectorConfig, err := resolvers.ResolveTFConnector(ctx, c.kube, cr.Spec.ConnectorConfigRef)
+	connectorConfig, err := resolvers.ResolveTFConnector(ctx, c.kube, cr.Spec.TFConnectorRef)
 	if err != nil {
 		return nil, errors.Wrap(err, errGetConnectorConfig)
 	}

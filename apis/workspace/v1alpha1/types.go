@@ -134,7 +134,7 @@ type WorkspaceSpec struct {
 	commonv1.ManagedSpec `json:",inline"`
 	// ConnectorConfigRef: configuration spec for
 	// +immutable
-	ConnectorConfigRef *commonv1.Reference `json:"connectorConfigRef,omitempty"`
+	TFConnectorRef *commonv1.Reference `json:"tfConnectorRef,omitempty"`
 	// Workspace: configuration spec for the workspace.
 	// +required
 	Workspace WorkspaceParameters `json:"workspace"`

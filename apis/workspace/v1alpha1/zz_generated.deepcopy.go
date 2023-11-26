@@ -233,8 +233,8 @@ func (in *WorkspaceParameters) DeepCopy() *WorkspaceParameters {
 func (in *WorkspaceSpec) DeepCopyInto(out *WorkspaceSpec) {
 	*out = *in
 	out.ManagedSpec = in.ManagedSpec
-	if in.ConnectorConfigRef != nil {
-		in, out := &in.ConnectorConfigRef, &out.ConnectorConfigRef
+	if in.TFConnectorRef != nil {
+		in, out := &in.TFConnectorRef, &out.TFConnectorRef
 		*out = new(v1.Reference)
 		**out = **in
 	}

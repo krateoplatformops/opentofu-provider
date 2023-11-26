@@ -44,7 +44,16 @@ spec:
           spec:
             description: A WorkspaceSpec defines the desired state of a Workspace.
             properties:
-              connectorConfigRef:
+              deletionPolicy:
+                default: Delete
+                description: DeletionPolicy specifies what will happen to the underlying
+                  external when this managed resource is deleted - either "Delete"
+                  or "Orphan" the external resource.
+                enum:
+                - Orphan
+                - Delete
+                type: string
+              tfConnectorRef:
                 description: 'ConnectorConfigRef: configuration spec for'
                 properties:
                   name:
@@ -57,15 +66,6 @@ spec:
                 - name
                 - namespace
                 type: object
-              deletionPolicy:
-                default: Delete
-                description: DeletionPolicy specifies what will happen to the underlying
-                  external when this managed resource is deleted - either "Delete"
-                  or "Orphan" the external resource.
-                enum:
-                - Orphan
-                - Delete
-                type: string
               workspace:
                 description: 'Workspace: configuration spec for the workspace.'
                 properties:
