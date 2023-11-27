@@ -1,0 +1,31 @@
+apiVersion: opentofu.krateo.io/v1alpha1
+kind: TFConnector
+metadata:
+  name: tfconfig-gcp
+spec:
+  backendCredentials:
+    - hostname: app.terraform.io
+      secretRef:
+        name: tfcloud-secret  
+        namespace: default
+        key: terraform-backend-token
+  providersCredentials:
+    - credFilename: gcp-credentials.json
+      secretRef:
+        namespace: default
+        name: gcp-prov-secret
+        key: credentials
+  configuration: |
+    provider "google" {
+      credentials = "gcp-credentials.json"
+      project     = "krateo-template-storagebucket"
+    }
+
+    # // Modules _must_ use remote state. The provider does not persist state.
+    # terraform {
+    #   backend "kubernetes" {
+    #     secret_suffix     = "provider-tf-secret"
+    #     namespace         = "krateo-system"
+    #     in_cluster_config = true
+    #   }
+    # }

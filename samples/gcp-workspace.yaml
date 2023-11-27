@@ -1,0 +1,44 @@
+apiVersion: opentofu.krateo.io/v1alpha1
+kind: Workspace
+metadata:
+  name: example-inline
+  annotations:
+    # The terraform workspace will be named 'coolbucket'. If you omit this
+    # annotation it would be derived from metadata.name - e.g. 'example-inline'.
+    crossplane.io/external-name: ispbucket
+spec:
+  deletionPolicy: Orphan
+  tfConnectorRef:
+    name: tfconfig-gcp
+    namespace: default
+  workspace:
+    source: Inline
+    cloud: true
+    module: |
+      // Outputs are written to the connection secret.
+      output "url" {
+        value       = google_storage_bucket.example.self_link
+      }
+
+      // The google provider and remote state are configured by the provider
+      // config - see providerconfig.yaml.
+      resource "google_storage_bucket" "example" {
+        name = "krateo-example-${terraform.workspace}"
+        location      = "US"
+        force_destroy = true
+
+        public_access_prevention = "enforced"
+      }
+
+      terraform {
+
+      cloud {
+        organization = "matteogastaldello"
+        hostname = "app.terraform.io"
+        workspaces {
+          name = "gcp-terraform-cloud"
+        }
+      }
+
+      required_version = ">= 1.1.0"
+      }

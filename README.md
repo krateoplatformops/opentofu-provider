@@ -1,6 +1,6 @@
 # OpenTofu Provider
 
-This is a [Krateo](https://krateoplatformops.github.io/) Provider that clones git repositories (eventually applying templates).
+This is a [Krateo](https://krateoplatformops.github.io/) Provider that manages cloud infrastructure through OpenTofu.
 
 ## Notes
 OpenTofu provider needs [OpenTofu CLI](https://opentofu.org/docs/intro/install/) to work. Tested with OpenTofu v1.6.0-dev
