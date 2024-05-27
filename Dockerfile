@@ -1,6 +1,6 @@
 # Build environment
 # -----------------
-FROM golang:1.21.4-bullseye as builder
+FROM golang:1.22.3-bullseye as builder
 LABEL stage=builder
 
 ARG DEBIAN_FRONTEND=noninteractive
@@ -9,12 +9,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y ca-certificates openssl git tzdata && \
   update-ca-certificates && \
-  rm -rf /var/lib/apt/lists/* && \
-  curl -s https://packagecloud.io/install/repositories/opentofu/tofu/script.deb.sh?any=true -o /tmp/tofu-repository-setup.sh && \
-  bash /tmp/tofu-repository-setup.sh && \
-  rm /tmp/tofu-repository-setup.sh && \
-  apt-get install -y tofu
-
+  rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
 
@@ -34,16 +29,23 @@ RUN CGO_ENABLED=0 GO111MODULE=on go build -a -o /bin/manager cmd/main.go && \
 
 # Deployment environment
 # ----------------------
-FROM gcr.io/distroless/static:nonroot
+FROM alpine:3.20
 
-COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
+RUN apk --no-cache add curl && \
+    apk --no-cache add git
+
+RUN curl --proto '=https' --tlsv1.2 -fsSL https://get.opentofu.org/install-opentofu.sh -o install-opentofu.sh && \
+    chmod +x install-opentofu.sh && \
+    ./install-opentofu.sh --install-method apk && \
+    rm install-opentofu.sh
+
+# COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-
 COPY --from=builder /bin/manager /bin/manager
 
 ARG METRICS_PORT
 EXPOSE ${METRICS_PORT}
 
-USER nonroot:nonroot
+# USER nonroot:nonroot
 
 ENTRYPOINT ["/bin/manager"]

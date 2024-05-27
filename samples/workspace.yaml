@@ -2,8 +2,10 @@ apiVersion: opentofu.krateo.io/v1alpha1
 kind: Workspace
 metadata:
   name: workspace-sample
+  annotations:
+    krateo.io/connector-verbose: "true"
 spec:
-  deletionPolicy: Orphan
+  deletionPolicy: Delete
   tfConnectorRef:
     name: tfconfig-sample
     namespace: default
