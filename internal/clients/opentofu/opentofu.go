@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -90,6 +91,9 @@ type Harness struct {
 	// Dir in which to execute the opentofu binary.
 	Dir string
 
+	// Verbose logging.
+	Verbose bool
+
 	// TODO(negz): Harness is a subset of exec.Cmd. If callers need more insight
 	// into what the underlying OpenTofu binary is doing (e.g. for debugging)
 	// we could consider allowing them to attach io.Writers to Stdout and Stdin
@@ -139,7 +143,9 @@ func (h Harness) Init(ctx context.Context, o ...InitOption) error {
 		return errors.Wrap(err, errSemAcquire)
 	}
 	out, err := cmd.Output()
-	fmt.Println(string(out))
+	if h.Verbose {
+		fmt.Println(string(out))
+	}
 	sem.Release(1)
 	return Classify(err)
 }
@@ -463,7 +469,7 @@ func (h Harness) Apply(ctx context.Context, o ...Option) error {
 	}
 
 	for _, vf := range ao.varFiles {
-		if err := ioutil.WriteFile(filepath.Join(h.Dir, vf.filename), vf.data, 0600); err != nil {
+		if err := os.WriteFile(filepath.Join(h.Dir, vf.filename), vf.data, 0600); err != nil {
 			return errors.Wrap(err, errWriteVarFile)
 		}
 	}
@@ -472,8 +478,18 @@ func (h Harness) Apply(ctx context.Context, o ...Option) error {
 	cmd := exec.CommandContext(ctx, h.Path, args...) //nolint:gosec
 	cmd.Dir = h.Dir
 
+	err := sem.Acquire(ctx, 1)
+	if err != nil {
+		return errors.Wrap(err, errSemAcquire)
+	}
+
 	out, err := cmd.Output()
-	fmt.Println(string(out))
+
+	if h.Verbose {
+		fmt.Println(string(out))
+	}
+
+	sem.Release(1)
 	return Classify(err)
 }
 
@@ -485,7 +501,7 @@ func (h Harness) Destroy(ctx context.Context, o ...Option) error {
 	}
 
 	for _, vf := range do.varFiles {
-		if err := ioutil.WriteFile(filepath.Join(h.Dir, vf.filename), vf.data, 0600); err != nil {
+		if err := os.WriteFile(filepath.Join(h.Dir, vf.filename), vf.data, 0600); err != nil {
 			return errors.Wrap(err, errWriteVarFile)
 		}
 	}
@@ -494,6 +510,17 @@ func (h Harness) Destroy(ctx context.Context, o ...Option) error {
 	cmd := exec.CommandContext(ctx, h.Path, args...) //nolint:gosec
 	cmd.Dir = h.Dir
 
-	_, err := cmd.Output()
+	err := sem.Acquire(ctx, 1)
+	if err != nil {
+		return errors.Wrap(err, errSemAcquire)
+	}
+
+	out, err := cmd.Output()
+
+	if h.Verbose {
+		fmt.Println(string(out))
+	}
+	sem.Release(1)
+
 	return Classify(err)
 }

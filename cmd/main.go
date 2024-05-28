@@ -16,14 +16,14 @@ import (
 	"github.com/krateoplatformops/provider-runtime/pkg/logging"
 	"github.com/krateoplatformops/provider-runtime/pkg/ratelimiter"
 
-	github "github.com/krateoplatformops/opentofu-provider/internal/controllers"
+	opentofu "github.com/krateoplatformops/opentofu-provider/internal/controllers"
 	"github.com/krateoplatformops/provider-runtime/pkg/controller"
 
 	"github.com/stoewer/go-strcase"
 )
 
 const (
-	providerName = "Git"
+	providerName = "opentofu"
 )
 
 func main() {
@@ -91,6 +91,6 @@ func main() {
 	}
 
 	kingpin.FatalIfError(apis.AddToScheme(mgr.GetScheme()), "Cannot add APIs to scheme")
-	kingpin.FatalIfError(github.Setup(mgr, o), "Cannot setup controllers")
+	kingpin.FatalIfError(opentofu.Setup(mgr, o), "Cannot setup controllers")
 	kingpin.FatalIfError(mgr.Start(ctrl.SetupSignalHandler()), "Cannot start controller manager")
 }

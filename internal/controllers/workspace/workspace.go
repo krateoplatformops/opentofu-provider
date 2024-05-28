@@ -2,7 +2,12 @@ package workspace
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 
+	"github.com/hashicorp/go-getter"
 	commonv1 "github.com/krateoplatformops/provider-runtime/apis/common/v1"
 	"github.com/krateoplatformops/provider-runtime/pkg/reconciler"
 	"github.com/krateoplatformops/provider-runtime/pkg/resource"
@@ -13,11 +18,13 @@ import (
 	workspacev1alpha1 "github.com/krateoplatformops/opentofu-provider/apis/workspace/v1alpha1"
 
 	"github.com/krateoplatformops/opentofu-provider/internal/clients/opentofu"
+	"github.com/krateoplatformops/opentofu-provider/internal/controllers/resolvers"
+	"github.com/krateoplatformops/opentofu-provider/internal/controllers/tools"
 )
 
 const (
 	tfPath   = "tofu"
-	tfDir    = "/tf"
+	tfDir    = "/tmp/tf"
 	tfMain   = "main.tf"
 	tfConfig = "crossplane-provider-config.tf"
 )
@@ -70,6 +77,14 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (reconciler
 		return reconciler.ExternalObservation{}, errors.New(errNotWorkspace)
 	}
 
+	cond := cr.Status.GetCondition(commonv1.Deleting().Type)
+	if cond.Reason == commonv1.ReasonDeleting {
+		return reconciler.ExternalObservation{
+			ResourceExists:   false,
+			ResourceUpToDate: true,
+		}, nil
+	}
+
 	cr.Status.SetConditions(commonv1.Available())
 
 	if cr.Status.AtProvider == nil {
@@ -95,6 +110,22 @@ func (e *external) Update(ctx context.Context, mg resource.Managed) error {
 		return errors.New(errNotWorkspace)
 	}
 
+	ctx, cancelFunc := tools.SetContextDeadlineForCLI(ctx)
+	defer cancelFunc()
+
+	e.log.Info("Update", "name", cr.GetName())
+
+	err := e.initRepo(ctx, *cr)
+	if err != nil {
+		return fmt.Errorf("failed to init repo: %w", err)
+	}
+
+	initOpts := make([]opentofu.InitOption, 0, len(cr.Spec.Workspace.InitArgs))
+	initOpts = append(initOpts, opentofu.WithInitArgs(cr.Spec.Workspace.InitArgs))
+	if err := e.tf.Init(ctx, initOpts...); err != nil {
+		return errors.Wrap(err, errInit)
+	}
+
 	spec := cr.Spec.Workspace
 	o, err := e.options(ctx, &spec)
 	if err != nil {
@@ -117,13 +148,113 @@ func (e *external) Update(ctx context.Context, mg resource.Managed) error {
 	cr.Status.AtProvider = &obs
 	cr.Status.SetConditions(commonv1.Available())
 
-	return nil
+	return e.kube.Status().Update(ctx, cr)
 }
 
 func (e *external) Delete(ctx context.Context, mg resource.Managed) error {
-	return nil // noop
+	cr, ok := mg.(*workspacev1alpha1.Workspace)
+	if !ok {
+		return errors.New(errNotWorkspace)
+	}
+	ctx, cancelFunc := tools.SetContextDeadlineForCLI(ctx)
+	defer cancelFunc()
+
+	e.log.Info("Delete", "name", cr.GetName())
+
+	err := e.initRepo(ctx, *cr)
+	if err != nil {
+		return fmt.Errorf("failed to init repo: %w", err)
+	}
+
+	initOpts := make([]opentofu.InitOption, 0, len(cr.Spec.Workspace.InitArgs))
+	initOpts = append(initOpts, opentofu.WithInitArgs(cr.Spec.Workspace.InitArgs))
+	if err := e.tf.Init(ctx, initOpts...); err != nil {
+		return errors.Wrap(err, errInit)
+	}
+
+	spec := cr.Spec.Workspace
+	o, err := e.options(ctx, &spec)
+	if err != nil {
+		return errors.Wrap(err, errOptions)
+	}
+
+	o = append(o, opentofu.WithArgs(spec.ApplyArgs))
+	if err := e.tf.Destroy(ctx, o...); err != nil {
+		return errors.Wrap(err, errDestroy)
+	}
+
+	e.recorder.Eventf(cr, corev1.EventTypeNormal, reasonDeleted,
+		"opentofu destroy '%s (id: %s)' success", cr.GetName(), cr.GetUID())
+
+	cr.Status.SetConditions(commonv1.Deleting())
+
+	return nil //e.kube.Status().Update(ctx, cr)
 }
 
+func (e *external) initRepo(ctx context.Context, cr workspacev1alpha1.Workspace) error {
+
+	connectorConfig, err := resolvers.ResolveTFConnector(ctx, e.kube, cr.Spec.TFConnectorRef)
+	if err != nil {
+		return errors.Wrap(err, errGetConnectorConfig)
+	}
+
+	for _, v := range connectorConfig.EnvVars {
+		os.Setenv(v.Name, v.Value)
+	}
+
+	// create TF_TOKEN_<hostname> env vars. Note: hostname on vars is underscore separated. eg. app.terraform.io -> app_terraform_io
+	for _, v := range connectorConfig.BackenedCreds {
+		hostname := strings.ReplaceAll(v.Name, ".", "_")
+		varName := "TF_TOKEN_" + hostname
+		err := os.Setenv(varName, v.Value)
+		if err != nil {
+			return fmt.Errorf("failed to set env var %s: %w", varName, err)
+		}
+	}
+
+	switch cr.Spec.Workspace.Source {
+	case workspacev1alpha1.ModuleSourceRemote:
+		// Workaround of https://github.com/hashicorp/go-getter/issues/114
+		if err := e.fs.RemoveAll(e.dir); err != nil {
+			return errors.Wrap(err, errRemoteModule)
+		}
+
+		client := getter.Client{
+			Src: cr.Spec.Workspace.Module,
+			Dst: e.dir,
+			Pwd: e.dir,
+
+			Mode: getter.ClientModeAny,
+		}
+		err := client.Get()
+		if err != nil {
+			return errors.Wrap(err, errRemoteModule)
+		}
+
+	case workspacev1alpha1.ModuleSourceInline:
+		if err := e.fs.WriteFile(filepath.Join(e.dir, tfMain), []byte(cr.Spec.Workspace.Module), 0600); err != nil {
+			return errors.Wrap(err, errWriteMain)
+		}
+	}
+
+	if len(cr.Spec.Workspace.Entrypoint) > 0 {
+		entrypoint := strings.ReplaceAll(cr.Spec.Workspace.Entrypoint, "../", "")
+		e.dir = filepath.Join(e.dir, entrypoint)
+	}
+
+	if connectorConfig.Configuration != nil {
+		if err := e.fs.WriteFile(filepath.Join(e.dir, tfConfig), []byte(*connectorConfig.Configuration), 0600); err != nil {
+			return errors.Wrap(err, errWriteConfig)
+		}
+	}
+	for _, v := range connectorConfig.ProviderCreds {
+		if err := e.fs.WriteFile(filepath.Join(e.dir, v.CredFilename), []byte(v.Value), 0600); err != nil {
+			return errors.Wrap(err, errWriteConfig)
+		}
+	}
+
+	return nil
+}
 func (c *external) options(ctx context.Context, p *workspacev1alpha1.WorkspaceParameters) ([]opentofu.Option, error) {
 	o := make([]opentofu.Option, 0, len(p.Vars)+len(p.VarFiles)+len(p.DestroyArgs)+len(p.ApplyArgs)+len(p.PlanArgs))
 
