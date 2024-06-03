@@ -2,21 +2,17 @@ package workspace
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"path/filepath"
 
 	worspacev1alpha1 "github.com/krateoplatformops/opentofu-provider/apis/workspace/v1alpha1"
-	"github.com/krateoplatformops/opentofu-provider/internal/clients/opentofu"
 	"github.com/krateoplatformops/provider-runtime/pkg/controller"
 	"github.com/krateoplatformops/provider-runtime/pkg/event"
 	"github.com/krateoplatformops/provider-runtime/pkg/logging"
-	"github.com/krateoplatformops/provider-runtime/pkg/meta"
 	"github.com/krateoplatformops/provider-runtime/pkg/ratelimiter"
 	"github.com/krateoplatformops/provider-runtime/pkg/reconciler"
 	"github.com/krateoplatformops/provider-runtime/pkg/resource"
 	"github.com/pkg/errors"
-	"github.com/spf13/afero"
+	apiextensionsscheme "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
+	clientsetscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -28,27 +24,25 @@ type connector struct {
 	log      logging.Logger
 	recorder record.EventRecorder
 
-	fs     afero.Afero
-	initTf func(dir string, verbose bool) tfclient
+	// fs     afero.Afero
+	// initTf func(dir string, verbose bool) tfclient
 }
 
 type external struct {
 	log      logging.Logger
 	recorder record.EventRecorder
-	fs       afero.Afero
-	dir      string
-	tf       tfclient
 	kube     client.Client
 }
 
 // Setup adds a controller that reconciles Token managed resources.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
+	_ = apiextensionsscheme.AddToScheme(clientsetscheme.Scheme)
+
 	name := reconciler.ControllerName(worspacev1alpha1.WorkspaceGroupKind)
 
 	log := o.Logger.WithValues("controller", name)
 
 	recorder := mgr.GetEventRecorderFor(name)
-	fs := afero.Afero{Fs: afero.NewOsFs()}
 
 	r := reconciler.NewReconciler(mgr,
 		resource.ManagedKind(worspacev1alpha1.WorkspaceGroupVersionKind),
@@ -56,14 +50,6 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 			kube:     mgr.GetClient(),
 			log:      log,
 			recorder: recorder,
-			fs:       fs,
-			initTf: func(dir string, verbose bool) tfclient {
-				return opentofu.Harness{
-					Path:    tfPath,
-					Dir:     dir,
-					Verbose: verbose,
-				}
-			},
 		}),
 		reconciler.WithPollInterval(o.PollInterval),
 		reconciler.WithLogger(log),
@@ -77,24 +63,14 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 }
 
 func (c *connector) Connect(ctx context.Context, mg resource.Managed) (reconciler.ExternalClient, error) {
-	cr, ok := mg.(*worspacev1alpha1.Workspace)
+	_, ok := mg.(*worspacev1alpha1.Workspace)
 	if !ok {
 		return nil, errors.New(errNotWorkspace)
 	}
 
-	dir := filepath.Join(tfDir, string(cr.GetUID()))
-	if err := c.fs.MkdirAll(dir, 0700); resource.Ignore(os.IsExist, err) != nil {
-		return nil, fmt.Errorf("failed to create workspace directory %s : %w, %s", tfDir, err, errMkdir)
-	}
-
-	tf := c.initTf(dir, meta.IsVerbose(cr))
-
 	return &external{
 		log:      c.log,
 		recorder: c.recorder,
-		fs:       c.fs,
-		dir:      dir,
-		tf:       tf,
 		kube:     c.kube,
-	}, nil // errors.Wrap(tf.Workspace(ctx, meta.GetExternalName(cr)), errWorkspace)
+	}, nil
 }

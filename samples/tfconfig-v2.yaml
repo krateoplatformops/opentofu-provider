@@ -1,0 +1,16 @@
+apiVersion: opentofu.krateo.io/v1alpha1
+kind: TFConnector
+metadata:
+  name: tfconfig-sample
+spec: # Any EnvVars must have the same name as the one required by OpenTofu CLI. See examples below
+  envVars:
+    - secretRef:
+        name: terraform-io #eg. This must point to a secret with the key "TF_TOKEN_app_terraform_io" if you are using Terraform Cloud
+  providersCredentials:
+    envVars:
+      - secretRef:
+          name: mycreds #eg. This must point to a secret with the key "AWS_ACCESS_KEY_ID" and "AWS_SECRET_ACCESS_KEY" if you are using AWS
+  gitCredentials:
+    secretRef:
+      name: git-credentials-init #This must point to a secret with the key "GIT_CREDENTIALS" if you are using a private git repository
+    

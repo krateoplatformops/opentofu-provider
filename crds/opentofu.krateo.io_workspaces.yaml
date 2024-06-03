@@ -12,7 +12,7 @@ spec:
     listKind: WorkspaceList
     plural: workspaces
     singular: workspace
-  scope: Cluster
+  scope: Namespaced
   versions:
   - additionalPrinterColumns:
     - jsonPath: .status.conditions[?(@.type=='Ready')].status
@@ -75,30 +75,6 @@ spec:
               workspace:
                 description: 'Workspace: configuration spec for the workspace.'
                 properties:
-                  applyArgs:
-                    description: Arguments to be included in the tofu apply CLI command
-                    items:
-                      type: string
-                    type: array
-                  cloud:
-                    description: Cloud - set this flag to true if running on terraform
-                      cloud
-                    type: boolean
-                  destroyArgs:
-                    description: Arguments to be included in the tofu destroy CLI
-                      command
-                    items:
-                      type: string
-                    type: array
-                  entrypoint:
-                    default: ""
-                    description: Entrypoint for `tofu init` within the module
-                    type: string
-                  initArgs:
-                    description: Arguments to be included in the tofu init CLI command
-                    items:
-                      type: string
-                    type: array
                   module:
                     description: |-
                       The root module of this workspace; i.e. the module containing its main.tf
@@ -107,92 +83,8 @@ spec:
                       repository or an S3 bucket. When the workspace's source is 'Inline' the
                       content of a simple main.tf file may be written inline.
                     type: string
-                  planArgs:
-                    description: Arguments to be included in the tofu plan CLI command
-                    items:
-                      type: string
-                    type: array
-                  source:
-                    description: Source of the root module of this workspace.
-                    enum:
-                    - Remote
-                    - Inline
-                    type: string
-                  varFiles:
-                    description: |-
-                      Files of configuration variables. Explicitly declared vars take
-                      precedence.
-                    items:
-                      description: A VarFile is a file containing many OpenTofu variables.
-                      properties:
-                        configMapKeyRef:
-                          description: A ConfigMap key containing the vars file.
-                          properties:
-                            key:
-                              description: Key within the referenced resource.
-                              type: string
-                            name:
-                              description: Name of the referenced resource.
-                              type: string
-                            namespace:
-                              description: Namespace of the referenced resource.
-                              type: string
-                          required:
-                          - key
-                          - name
-                          - namespace
-                          type: object
-                        format:
-                          default: HCL
-                          description: Format of this vars file.
-                          enum:
-                          - HCL
-                          - JSON
-                          type: string
-                        secretKeyRef:
-                          description: A Secret key containing the vars file.
-                          properties:
-                            key:
-                              description: Key within the referenced resource.
-                              type: string
-                            name:
-                              description: Name of the referenced resource.
-                              type: string
-                            namespace:
-                              description: Namespace of the referenced resource.
-                              type: string
-                          required:
-                          - key
-                          - name
-                          - namespace
-                          type: object
-                        source:
-                          description: Source of this vars file.
-                          enum:
-                          - ConfigMapKey
-                          - SecretKey
-                          type: string
-                      required:
-                      - source
-                      type: object
-                    type: array
-                  vars:
-                    description: Configuration variables.
-                    items:
-                      description: A Var represents a OpenTofu configuration variable.
-                      properties:
-                        key:
-                          type: string
-                        value:
-                          type: string
-                      required:
-                      - key
-                      - value
-                      type: object
-                    type: array
                 required:
                 - module
-                - source
                 type: object
             required:
             - workspace
@@ -200,14 +92,6 @@ spec:
           status:
             description: A WorkspaceStatus represents the observed state of a Workspace.
             properties:
-              atProvider:
-                description: WorkspaceObservation are the observable fields of a Workspace.
-                properties:
-                  outputs:
-                    additionalProperties:
-                      type: string
-                    type: object
-                type: object
               conditions:
                 description: Conditions of the resource.
                 items:
@@ -244,6 +128,8 @@ spec:
                   - type
                   type: object
                 type: array
+              error:
+                type: string
             type: object
         required:
         - spec
