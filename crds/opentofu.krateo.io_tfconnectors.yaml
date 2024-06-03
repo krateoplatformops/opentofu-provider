@@ -15,7 +15,7 @@ spec:
     listKind: TFConnectorList
     plural: tfconnectors
     singular: tfconnector
-  scope: Cluster
+  scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
@@ -40,108 +40,159 @@ spec:
             type: object
           spec:
             properties:
-              backendCredentials:
-                description: BackendCredentials required to authenticate. eg. Terraform
-                  Cloud
+              envVars:
+                description: EnvVars environment variables for OpenTofu cli.
                 items:
+                  description: EnvFromSource represents the source of a set of ConfigMaps
                   properties:
-                    hostname:
-                      description: Hostname of the Cloud Backend. (eg app.terraform.io)
+                    configMapRef:
+                      description: The ConfigMap to select from
+                      properties:
+                        name:
+                          default: ""
+                          description: |-
+                            Name of the referent.
+                            This field is effectively required, but due to backwards compatibility is
+                            allowed to be empty. Instances of this type with an empty value here are
+                            almost certainly wrong.
+                            TODO: Add other useful fields. apiVersion, kind, uid?
+                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            TODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.
+                          type: string
+                        optional:
+                          description: Specify whether the ConfigMap must be defined
+                          type: boolean
+                      type: object
+                      x-kubernetes-map-type: atomic
+                    prefix:
+                      description: An optional identifier to prepend to each key in
+                        the ConfigMap. Must be a C_IDENTIFIER.
                       type: string
                     secretRef:
-                      description: SecretRef reference to the secret containing the
-                        credentials.
+                      description: The Secret to select from
                       properties:
-                        key:
-                          description: The key to select.
-                          type: string
                         name:
-                          description: Name of the referenced object.
+                          default: ""
+                          description: |-
+                            Name of the referent.
+                            This field is effectively required, but due to backwards compatibility is
+                            allowed to be empty. Instances of this type with an empty value here are
+                            almost certainly wrong.
+                            TODO: Add other useful fields. apiVersion, kind, uid?
+                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            TODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.
                           type: string
-                        namespace:
-                          description: Namespace of the referenced object.
-                          type: string
-                      required:
-                      - key
-                      - name
-                      - namespace
+                        optional:
+                          description: Specify whether the Secret must be defined
+                          type: boolean
                       type: object
-                  required:
-                  - hostname
-                  - secretRef
+                      x-kubernetes-map-type: atomic
                   type: object
                 type: array
-              configuration:
+              gitCredentials:
                 description: |-
-                  Configuration that should be injected into all workspaces that use
-                  this provider config, expressed as inline HCL. This can be used to
-                  automatically inject Terraform provider configuration blocks.
-                type: string
-              envVars:
-                description: EnvVars environment variables for Terraform cli.
-                items:
-                  description: |-
-                    EnvVar Opentofu CLI env vars.
-                    https://opentofu.org/docs/cli/cloud/settings/#environment-variables
-                  properties:
-                    configMapKeyRef:
-                      description: A ConfigMap key containing the env var value.
-                      properties:
-                        key:
-                          description: The key to select.
-                          type: string
-                        name:
-                          description: Name of the referenced object.
-                          type: string
-                        namespace:
-                          description: Namespace of the referenced object.
-                          type: string
-                      required:
-                      - key
-                      - name
-                      - namespace
-                      type: object
-                    name:
-                      description: Name of the env var (eg. https://opentofu.org/docs/cli/cloud/settings/#environment-variables)
-                      type: string
-                  required:
-                  - name
-                  type: object
-                type: array
+                  GitCredentials required to authenticate. The name of the env var MUST be GIT_CREDENTIALS.
+                  eg. kubectl create secret generic git-creds --from-literal=GIT_CREDENTIALS=<TOKEN>
+                properties:
+                  configMapRef:
+                    description: The ConfigMap to select from
+                    properties:
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          TODO: Add other useful fields. apiVersion, kind, uid?
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          TODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.
+                        type: string
+                      optional:
+                        description: Specify whether the ConfigMap must be defined
+                        type: boolean
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  prefix:
+                    description: An optional identifier to prepend to each key in
+                      the ConfigMap. Must be a C_IDENTIFIER.
+                    type: string
+                  secretRef:
+                    description: The Secret to select from
+                    properties:
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          TODO: Add other useful fields. apiVersion, kind, uid?
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          TODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.
+                        type: string
+                      optional:
+                        description: Specify whether the Secret must be defined
+                        type: boolean
+                    type: object
+                    x-kubernetes-map-type: atomic
+                type: object
               providersCredentials:
                 description: Credentials required to authenticate.
-                items:
-                  properties:
-                    credFilename:
-                      description: CredFile where to save credentials file.
-                      type: string
-                    secretRef:
-                      description: |-
-                        Name of the provider. (eg. aws)
-                        ProviderName *string `json:"providerName"`
-                        SecretRef reference to the secret containing the credentials.
+                properties:
+                  envVars:
+                    description: EnvironmentVars to set for the provider.
+                    items:
+                      description: EnvFromSource represents the source of a set of
+                        ConfigMaps
                       properties:
-                        key:
-                          description: The key to select.
+                        configMapRef:
+                          description: The ConfigMap to select from
+                          properties:
+                            name:
+                              default: ""
+                              description: |-
+                                Name of the referent.
+                                This field is effectively required, but due to backwards compatibility is
+                                allowed to be empty. Instances of this type with an empty value here are
+                                almost certainly wrong.
+                                TODO: Add other useful fields. apiVersion, kind, uid?
+                                More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                TODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.
+                              type: string
+                            optional:
+                              description: Specify whether the ConfigMap must be defined
+                              type: boolean
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        prefix:
+                          description: An optional identifier to prepend to each key
+                            in the ConfigMap. Must be a C_IDENTIFIER.
                           type: string
-                        name:
-                          description: Name of the referenced object.
-                          type: string
-                        namespace:
-                          description: Namespace of the referenced object.
-                          type: string
-                      required:
-                      - key
-                      - name
-                      - namespace
+                        secretRef:
+                          description: The Secret to select from
+                          properties:
+                            name:
+                              default: ""
+                              description: |-
+                                Name of the referent.
+                                This field is effectively required, but due to backwards compatibility is
+                                allowed to be empty. Instances of this type with an empty value here are
+                                almost certainly wrong.
+                                TODO: Add other useful fields. apiVersion, kind, uid?
+                                More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                TODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.
+                              type: string
+                            optional:
+                              description: Specify whether the Secret must be defined
+                              type: boolean
+                          type: object
+                          x-kubernetes-map-type: atomic
                       type: object
-                  required:
-                  - credFilename
-                  - secretRef
-                  type: object
-                type: array
-            required:
-            - backendCredentials
+                    type: array
+                required:
+                - envVars
+                type: object
             type: object
         type: object
     served: true

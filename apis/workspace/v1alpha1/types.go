@@ -91,43 +91,43 @@ type WorkspaceParameters struct {
 	// content of a simple main.tf file may be written inline.
 	Module string `json:"module"`
 
-	// Source of the root module of this workspace.
-	Source ModuleSource `json:"source"`
+	// // Source of the root module of this workspace.
+	// Source ModuleSource `json:"source"`
 
-	// Entrypoint for `tofu init` within the module
-	// +kubebuilder:default=""
-	// +optional
-	Entrypoint string `json:"entrypoint"`
+	// // Entrypoint for `tofu init` within the module
+	// // +kubebuilder:default=""
+	// // +optional
+	// Entrypoint string `json:"entrypoint"`
 
-	// Configuration variables.
-	// +optional
-	Vars []Var `json:"vars,omitempty"`
+	// // Configuration variables.
+	// // +optional
+	// Vars []Var `json:"vars,omitempty"`
 
-	// Files of configuration variables. Explicitly declared vars take
-	// precedence.
-	// +optional
-	VarFiles []VarFile `json:"varFiles,omitempty"`
+	// // Files of configuration variables. Explicitly declared vars take
+	// // precedence.
+	// // +optional
+	// VarFiles []VarFile `json:"varFiles,omitempty"`
 
-	// Arguments to be included in the tofu init CLI command
-	InitArgs []string `json:"initArgs,omitempty"`
+	// // Arguments to be included in the tofu init CLI command
+	// InitArgs []string `json:"initArgs,omitempty"`
 
-	// Arguments to be included in the tofu plan CLI command
-	PlanArgs []string `json:"planArgs,omitempty"`
+	// // Arguments to be included in the tofu plan CLI command
+	// PlanArgs []string `json:"planArgs,omitempty"`
 
-	// Arguments to be included in the tofu apply CLI command
-	ApplyArgs []string `json:"applyArgs,omitempty"`
+	// // Arguments to be included in the tofu apply CLI command
+	// ApplyArgs []string `json:"applyArgs,omitempty"`
 
-	// Arguments to be included in the tofu destroy CLI command
-	DestroyArgs []string `json:"destroyArgs,omitempty"`
+	// // Arguments to be included in the tofu destroy CLI command
+	// DestroyArgs []string `json:"destroyArgs,omitempty"`
 
-	// Cloud - set this flag to true if running on terraform cloud
-	Cloud bool `json:"cloud,omitempty"`
+	// // Cloud - set this flag to true if running on terraform cloud
+	// Cloud bool `json:"cloud,omitempty"`
 }
 
 // WorkspaceObservation are the observable fields of a Workspace.
-type WorkspaceObservation struct {
-	Outputs map[string]string `json:"outputs,omitempty"`
-}
+// type WorkspaceObservation struct {
+// 	Outputs map[string]string `json:"outputs,omitempty"`
+// }
 
 // A WorkspaceSpec defines the desired state of a Workspace.
 type WorkspaceSpec struct {
@@ -143,7 +143,7 @@ type WorkspaceSpec struct {
 // A WorkspaceStatus represents the observed state of a Workspace.
 type WorkspaceStatus struct {
 	commonv1.ManagedStatus `json:",inline"`
-	AtProvider             *WorkspaceObservation `json:"atProvider,omitempty"`
+	Error                  *string `json:"error,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -153,7 +153,7 @@ type WorkspaceStatus struct {
 // +kubebuilder:printcolumn:name="READY",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="SYNCED",type="string",JSONPath=".status.conditions[?(@.type=='Synced')].status"
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
-// +kubebuilder:resource:scope=Cluster
+// +kubebuilder:resource:scope=Namespaced
 type Workspace struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
