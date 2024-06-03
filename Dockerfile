@@ -29,15 +29,7 @@ RUN CGO_ENABLED=0 GO111MODULE=on go build -a -o /bin/manager cmd/main.go && \
 
 # Deployment environment
 # ----------------------
-FROM alpine:3.20
-
-RUN apk --no-cache add curl && \
-    apk --no-cache add git
-
-RUN curl --proto '=https' --tlsv1.2 -fsSL https://get.opentofu.org/install-opentofu.sh -o install-opentofu.sh && \
-    chmod +x install-opentofu.sh && \
-    ./install-opentofu.sh --install-method apk && \
-    rm install-opentofu.sh
+FROM gcr.io/distroless/static:nonroot
 
 # COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
