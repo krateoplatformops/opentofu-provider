@@ -176,9 +176,10 @@ func (a Action) String() string {
 // OpenTofu often returns a summary of the error it encountered on a single
 // line, prefixed with 'Error: '.
 var tfError = regexp.MustCompile(`Error: (.+)\n`)
+var tfPlan = regexp.MustCompile(`Plan: (.+)\n`)
 
 // Classify errors returned from the OpenTofu CLI by inspecting its stderr.
-func classifyPodLog(str string) error {
+func ClassifyPodErr(str string) error {
 
 	lines := bytes.Split([]byte(str), []byte("\n"))
 
@@ -198,6 +199,15 @@ func classifyPodLog(str string) error {
 	return errors.New("unknown error")
 }
 
+// ClassifyPlanPodLog returns true if the workspace is up to date.
+func ClassifyPlanPodLog(str string) bool {
+	lines := bytes.Split([]byte(str), []byte("\n"))
+	if m := tfPlan.FindSubmatch([]byte(str)); len(lines) > 0 && len(m) > 1 {
+		return false
+	}
+	return true
+}
+
 func addOwnerRef(ctx context.Context, kube client.Client, sa *corev1.ServiceAccount, role *rbacv1.Role, roleBinding *rbacv1.RoleBinding, pvc *corev1.PersistentVolumeClaim, owRef metav1.OwnerReference) error {
 	sa.OwnerReferences = append(sa.OwnerReferences, owRef)
 	role.OwnerReferences = append(role.OwnerReferences, owRef)
@@ -215,14 +225,29 @@ func addOwnerRef(ctx context.Context, kube client.Client, sa *corev1.ServiceAcco
 	return nil
 }
 
-func GetJobLogs(ctx context.Context, kube client.Client, jobname, namespace string) (*string, *string, error) {
+type JobInfo struct {
+	Logs *string
+	Errs *string
+	pods *corev1.PodList
+}
+
+func (job *JobInfo) GetSuccededPod() *corev1.Pod {
+	for _, pod := range job.pods.Items {
+		if pod.Status.Phase == corev1.PodSucceeded {
+			return &pod
+		}
+	}
+	return nil
+}
+
+func GetJobInfo(ctx context.Context, kube client.Client, jobname, namespace string) (*JobInfo, error) {
 	restconfig, err := ctrl.GetConfig()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	clientraw, err := clientgo.NewForConfig(restconfig)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	pods := corev1.PodList{}
 	selector := labels.SelectorFromSet(labels.Set(map[string]string{"job-name": jobname}))
@@ -231,7 +256,7 @@ func GetJobLogs(ctx context.Context, kube client.Client, jobname, namespace stri
 		LabelSelector: selector,
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	errsbuf := []string{}
@@ -251,18 +276,26 @@ func GetJobLogs(ctx context.Context, kube client.Client, jobname, namespace stri
 		buf := new(bytes.Buffer)
 		_, err = io.Copy(buf, podLogs)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to copy pod logs: %w", err)
+			return nil, fmt.Errorf("failed to copy pod logs: %w", err)
 		}
 
 		str := buf.String()
 
 		log = &str
 
-		errsbuf = append(errsbuf, fmt.Sprintf("%s: %s", pod.GetName(), classifyPodLog(str).Error()))
+		errsbuf = append(errsbuf, fmt.Sprintf("%s: %s", pod.GetName(), ClassifyPodErr(str).Error()))
 	}
 
 	joined := strings.Join(errsbuf, "\n")
-	return log, &joined, nil
+
+	polist := pods.DeepCopy()
+
+	return &JobInfo{
+		Logs: log,
+		Errs: &joined,
+		pods: polist,
+	}, nil
+	// return log, &joined, polist, nil
 }
 
 func GetJob(ctx context.Context, kube client.Client, name, namespace string) (*batchv1.Job, error) {
@@ -293,7 +326,9 @@ func Run(ctx context.Context, kube client.Client, cr workspacev1alpha1.Workspace
 		initEnvs = append(initEnvs, *cfg.Spec.GitCredentials)
 	}
 
-	cmds := action.GetCMDs()
+	cmds := strings.Join(action.GetCMDs(), " && ")
+
+	// fmt.Println("Cmds: ", cmds)
 
 	cloneCommand := fmt.Sprintf("git clone -c credential.helper='!f() { echo username=author; echo \"password=$GIT_CREDENTIALS\"; };f' %s workspace", cr.Spec.Workspace.Module)
 
@@ -333,7 +368,7 @@ func Run(ctx context.Context, kube client.Client, cr workspacev1alpha1.Workspace
 					Image:      opentofuImage,
 					WorkingDir: "/mnt/workspace",
 					Command:    []string{"sh", "-c"},
-					Args:       []string{strings.Join(cmds, " && ")},
+					Args:       []string{cmds},
 					VolumeMounts: []corev1.VolumeMount{
 						{
 							Name:      pvc.GetName(),
@@ -358,7 +393,6 @@ func Run(ctx context.Context, kube client.Client, cr workspacev1alpha1.Workspace
 					},
 					Command: []string{"sh", "-c"},
 					Args:    []string{cloneCommand},
-					// Command: []string{"git", "clone", cr.Spec.Workspace.Module, "workspace"},
 				},
 			},
 			Volumes: []corev1.Volume{
